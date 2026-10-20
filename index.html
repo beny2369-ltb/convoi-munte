@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convoi Munte - Live Tracker</title>
+    <!-- Leaflet CSS pentru hartă -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Tailwind CSS pentru design modern -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #map { height: 50vh; width: 100%; border-radius: 1rem; z-index: 1; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between relative">
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md z-10">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center gap-2">
+                <span class="text-2xl">🚙</span>
+                <div>
+                    <h1 class="font-bold text-lg">Convoi Munte Live</h1>
+                    <p class="text-xs text-slate-400">Admin: <span class="text-emerald-400 font-semibold">Beny</span></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="shareToggleBtn" onclick="toggleShare()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow transition">
+                    🟢 Pornește Share Live
+                </button>
+                <button onclick="openAdminModal()" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-semibold rounded-xl transition">
+                    ⚙️ Setări Admin
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl w-full mx-auto p-4 flex-1 space-y-4">
+        
+        <!-- Destinație Setată -->
+        <div id="destinationBanner" class="hidden bg-indigo-900/50 border border-indigo-500/30 p-3 rounded-xl flex justify-between items-center text-xs">
+            <div>
+                <span class="font-bold text-indigo-300">🏁 Destinație Setată pe hartă!</span> 
+            </div>
+            <button id="clearDestBtn" onclick="clearDestination()" class="hidden text-rose-400 hover:underline">Șterge destinația</button>
+        </div>
+
+        <!-- Harta -->
+        <div id="map" class="shadow-lg border border-slate-700"></div>
+
+        <!-- Panou Viteze și ETA -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-md">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Membri Convoi & Viteze Active</h2>
+            <div id="membersList" class="space-y-2">
+                <p class="text-xs text-slate-500 italic">Niciun membru activ momentan pe hartă.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Introducere Nume + Sugestii -->
+    <div id="nameModal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl relative">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-sm text-white">Cum te numești?</h3>
+                <button onclick="closeNameModal()" class="text-slate-400 hover:text-white font-bold text-lg">✕</button>
+            </div>
+            <div class="space-y-3">
+                <p class="text-xs text-slate-300">Introdu numele sau alege o sugestie:</p>
+                <input id="userNameInput" type="text" placeholder="ex: Mihai, Andrei..." class="w-full px-3 py-2 text-sm bg-slate-900 border border-slate-700 rounded-xl text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+                
+                <!-- Sugestii de nume -->
+                <div class="space-y-1">
+                    <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Sugestii rapide:</span>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button onclick="selectName('Beny')" class="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-xs rounded-lg transition font-medium">Beny 🔒</button>
+                        <button onclick="selectName('Bebe')" class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition">Bebe</button>
+                        <button onclick="selectName('Silviu')" class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition">Silviu</button>
+                        <button onclick="selectName('Alin')" class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition">Alin</button>
+                    </div>
+                </div>
+
+                <button onclick="confirmStartShare()" class="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl transition">
+                    Pornește GPS-ul
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Parolă pentru Beny -->
+    <div id="benyPasswordModal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl relative">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-sm text-amber-400">Nume Protejat</h3>
+                <button onclick="closeBenyModal()" class="text-slate-400 hover:text-white font-bold text-lg">✕</button>
+            </div>
+            <div class="space-y-3">
+                <p class="text-xs text-slate-300">Numele „Beny” este rezervat. Introdu parola de acces:</p>
+                <input id="benyPasswordInput" type="password" placeholder="Parolă" class="w-full px-3 py-2 text-sm bg-slate-900 border border-slate-700 rounded-xl text-white focus:ring-2 focus:ring-amber-500 focus:outline-none" />
+                <button onclick="verifyBenyPassword()" class="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-xl transition">
+                    Confirmă Identitatea
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Admin -->
+    <div id="adminModal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl relative">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-sm text-white">Panou Control Admin</h3>
+                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-white font-bold text-lg">✕</button>
+            </div>
+            <div id="adminLoginForm" class="space-y-3">
+                <p class="text-xs text-slate-300">Introdu parola de administrator pentru a seta destinația grupului pe hartă.</p>
+                <input id="adminPinInput" type="password" placeholder="Parolă admin" class="w-full px-3 py-2 text-sm bg-slate-900 border border-slate-700 rounded-xl text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+                <button onclick="verifyAdmin()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl transition">
+                    Deblochează Mod Admin
+                </button>
+            </div>
+            <div id="adminControls" class="hidden space-y-3">
+                <p class="text-xs text-emerald-400 font-semibold">✓ Mod Admin ACTIV! Acum poți da click oriunde pe hartă ca să setezi destinația.</p>
+                <button onclick="lockAdmin()" class="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-xl transition">
+                    🔒 Închide / Părăsește Modul Admin
+                </button>
+                <button onclick="closeAdminModal()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-xs rounded-xl text-white">Închide fereastra</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUPzhcMPOcWZHXPd--yQtaabWKxsHCy8A",
+            authDomain: "convoimunte.firebaseapp.com",
+            databaseURL: "https://convoimunte-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "convoimunte",
+            storageBucket: "convoimunte.firebasestorage.app",
+            messagingSenderId: "506248271699",
+            appId: "1:506248271699:web:5f3b756e63346ceae373a6"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        let map, watchId = null, isSharing = false;
+        let isAdmin = false;
+        let destination = null;
+        let myName = "";
+        const MY_PIN = "2369";
+
+        let activeUsers = {};
+        let userMarkers = {};
+        let destMarker = null;
+        let isFirstCenter = true;
+
+        window.initMap = function() {
+            map = L.map('map').setView([44.4268, 26.1025], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            map.on('click', function(e) {
+                if (!isAdmin) {
+                    alert("Doar administratorul (Beny) poate seta destinația convoiului!");
+                    return;
+                }
+                destination = e.latlng;
+                
+                // Salvăm destinația strict securizat din contul de admin în Firebase
+                set(ref(db, 'destination'), { lat: destination.lat, lng: destination.lng });
+                alert("Destinație setată cu succes pe hartă și sincronizată pentru toți!");
+            });
+
+            // Ascultă schimbările de destinație din Firebase în timp real
+            onValue(ref(db, 'destination'), (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    destination = data;
+                    if (destMarker) map.removeLayer(destMarker);
+                    destMarker = L.marker([destination.lat, destination.lng]).addTo(map)
+                        .bindPopup("🏁 Destinație Convoi").openPopup();
+                    document.getElementById('destinationBanner').classList.remove('hidden');
+                    
+                    // Afișează butonul de ștergere doar dacă utilizatorul curent este admin
+                    if (isAdmin) {
+                        document.getElementById('clearDestBtn').classList.remove('hidden');
+                    } else {
+                        document.getElementById('clearDestBtn').classList.add('hidden');
+                    }
+                } else {
+                    destination = null;
+                    if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+                    document.getElementById('destinationBanner').classList.add('hidden');
+                }
+                updateUI();
+            });
+
+            // Ascultă utilizatorii activi din Firebase în timp real
+            onValue(ref(db, 'users'), (snapshot) => {
+                const users = snapshot.val() || {};
+                activeUsers = users;
+
+                const currentNames = Object.keys(users);
+                
+                for (let name in userMarkers) {
+                    if (!currentNames.includes(name)) {
+                        map.removeLayer(userMarkers[name]);
+                        delete userMarkers[name];
+                    }
+                }
+
+                for (let name in users) {
+                    let u = users[name];
+                    if (userMarkers[name]) {
+                        userMarkers[name].setLatLng([u.lat, u.lng]);
+                    } else {
+                        userMarkers[name] = L.marker([u.lat, u.lng]).addTo(map)
+                            .bindPopup(`<b>${name}</b><br>Viteză: ${u.speed} km/h`);
+                    }
+                }
+                updateUI();
+            });
+        }
+
+        window.toggleShare = function() {
+            if (!isSharing) {
+                document.getElementById('nameModal').classList.remove('hidden');
+                document.getElementById('nameModal').classList.add('flex');
+            } else {
+                stopSharing();
+            }
+        }
+
+        window.closeNameModal = function() {
+            document.getElementById('nameModal').classList.add('hidden');
+            document.getElementById('nameModal').classList.remove('flex');
+        }
+
+        window.selectName = function(name) {
+            document.getElementById('userNameInput').value = name;
+        }
+
+        window.confirmStartShare = function() {
+            const inputVal = document.getElementById('userNameInput').value.trim();
+            if (!inputVal) {
+                alert("Te rog introdu un nume sau alege o sugestie!");
+                return;
+            }
+
+            if (inputVal.toLowerCase() === 'beny') {
+                closeNameModal();
+                document.getElementById('benyPasswordModal').classList.remove('hidden');
+                document.getElementById('benyPasswordModal').classList.add('flex');
+                return;
+            }
+
+            startGpsTracking(inputVal);
+        }
+
+        window.closeBenyModal = function() {
+            document.getElementById('benyPasswordModal').classList.add('hidden');
+            document.getElementById('benyPasswordModal').classList.remove('flex');
+        }
+
+        window.verifyBenyPassword = function() {
+            const pass = document.getElementById('benyPasswordInput').value;
+            if (pass === MY_PIN) {
+                closeBenyModal();
+                document.getElementById('benyPasswordInput').value = '';
+                isAdmin = true; // Dacă s-a logat ca Beny, activează automat și drepturile de admin
+                startGpsTracking("Beny (Admin)");
+            } else {
+                alert("Parolă incorectă!");
+            }
+        }
+
+        function startGpsTracking(nameAssigned) {
+            myName = nameAssigned;
+            closeNameModal();
+
+            if (navigator.geolocation) {
+                isSharing = true;
+                document.getElementById('shareToggleBtn').textContent = "🔴 Oprește Share Live";
+                document.getElementById('shareToggleBtn').className = "px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs rounded-xl shadow transition";
+                
+                watchId = navigator.geolocation.watchPosition(position => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const speedMs = position.coords.speed || 0;
+                    const speedKmh = Math.round(speedMs * 3.6);
+
+                    const cleanName = myName.replace(/[.#$\/\[\]]/g, "_");
+                    set(ref(db, 'users/' + cleanName), {
+                        lat: lat,
+                        lng: lng,
+                        speed: speedKmh
+                    });
+
+                    if (isFirstCenter) {
+                        map.setView([lat, lng], 15);
+                        isFirstCenter = false;
+                    }
+                }, error => {
+                    alert("Eroare GPS: " + error.message);
+                    stopSharing();
+                }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+            } else {
+                alert("Geolocația nu este suportată de browserul tău.");
+            }
+        }
+
+        window.stopSharing = function() {
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            isSharing = false;
+            isFirstCenter = true;
+            
+            if (myName) {
+                const cleanName = myName.replace(/[.#$\/\[\]]/g, "_");
+                remove(ref(db, 'users/' + cleanName));
+            }
+
+            document.getElementById('shareToggleBtn').textContent = "🟢 Pornește Share Live";
+            document.getElementById('shareToggleBtn').className = "px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow transition";
+        }
+
+        function updateUI() {
+            const listEl = document.getElementById('membersList');
+            listEl.innerHTML = '';
+
+            const usersArr = Object.entries(activeUsers);
+            if (usersArr.length === 0) {
+                listEl.innerHTML = `<p class="text-xs text-slate-500 italic">Niciun membru activ momentan pe hartă.</p>`;
+                return;
+            }
+
+            for (let [name, data] of usersArr) {
+                let etaText = "-";
+                if (destination && data.lat && data.lng) {
+                    const distKm = getDistanceFromLatLonInKm(data.lat, data.lng, destination.lat, destination.lng);
+                    if (data.speed > 5) {
+                        const hours = distKm / data.speed;
+                        const minutes = Math.round(hours * 60);
+                        etaText = `~${minutes} min (${distKm.toFixed(1)} km)`;
+                    } else {
+                        etaText = `${distKm.toFixed(1)} km (Staționar)`;
+                    }
+                }
+
+                const item = document.createElement('div');
+                item.className = "flex justify-between items-center bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/60 text-xs";
+                item.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="font-semibold text-slate-200">${name}</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="px-2 py-1 bg-slate-800 rounded-lg text-emerald-400 font-mono font-bold">${data.speed} km/h</span>
+                        <span class="text-slate-400">ETA: <strong class="text-indigo-300">${etaText}</strong></span>
+                    </div>
+                `;
+                listEl.appendChild(item);
+            }
+        }
+
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            var R = 6371;
+            var dLat = deg2rad(lat2-lat1);
+            var dLon = deg2rad(lon2-lon1);
+            var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function deg2rad(deg) { return deg * (Math.PI/180); }
+
+        window.openAdminModal = function() { 
+            const m = document.getElementById('adminModal');
+            m.classList.remove('hidden'); 
+            m.classList.add('flex'); 
+        }
+        window.closeAdminModal = function() { 
+            const m = document.getElementById('adminModal');
+            m.classList.add('hidden'); 
+            m.classList.remove('flex'); 
+        }
+
+        window.verifyAdmin = function() {
+            const pin = document.getElementById('adminPinInput').value;
+            if (pin === MY_PIN) {
+                isAdmin = true;
+                document.getElementById('adminLoginForm').classList.add('hidden');
+                document.getElementById('adminControls').classList.remove('hidden');
+                document.getElementById('clearDestBtn').classList.remove('hidden');
+                alert("Acces Admin acordat! Acum poți închide fereastra și poți da click oriunde pe hartă.");
+            } else {
+                alert("Parolă incorectă!");
+            }
+        }
+
+        window.lockAdmin = function() {
+            isAdmin = false;
+            document.getElementById('adminLoginForm').classList.remove('hidden');
+            document.getElementById('adminControls').classList.add('hidden');
+            document.getElementById('adminPinInput').value = '';
+            document.getElementById('clearDestBtn').classList.add('hidden');
+            closeAdminModal();
+            alert("Modul Admin a fost închis și blocat.");
+        }
+
+        window.clearDestination = function() {
+            if (!isAdmin) {
+                alert("Doar administratorul poate șterge destinația!");
+                return;
+            }
+            remove(ref(db, 'destination'));
+            if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+            document.getElementById('destinationBanner').classList.add('hidden');
+            document.getElementById('clearDestBtn').classList.add('hidden');
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>
