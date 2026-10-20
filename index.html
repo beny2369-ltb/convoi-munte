@@ -141,7 +141,7 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, set, onValue, remove, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCUPzhcMPOcWZHXPd--yQtaabWKxsHCy8A",
@@ -160,12 +160,30 @@
         let isAdmin = false;
         let destination = null;
         let myName = "";
-        const MY_PIN = "2369";
 
         let activeUsers = {};
         let userMarkers = {};
         let destMarker = null;
         let isFirstCenter = true;
+
+        // Funcție helper pentru a verifica parola direct din Firebase
+        async function checkPasswordInFirebase(enteredPassword) {
+            try {
+                const dbRef = ref(db);
+                const snapshot = await get(child(dbRef, 'settings/adminPin'));
+                if (snapshot.exists()) {
+                    const correctPin = snapshot.val();
+                    return enteredPassword === correctPin;
+                } else {
+                    alert("Eroare: Nu s-a găsit setarea de parolă în Firebase!");
+                    return false;
+                }
+            } catch (error) {
+                console.error(error);
+                alert("Eroare de conexiune la baza de date.");
+                return false;
+            }
+        }
 
         window.initMap = function() {
             map = L.map('map').setView([44.4268, 26.1025], 13);
@@ -231,7 +249,6 @@
             });
         }
 
-        // Funcție de căutare POI / Adrese gratuită
         window.searchLocation = async function() {
             if (!isAdmin) return;
             const query = document.getElementById('searchQuery').value.trim();
@@ -248,14 +265,13 @@
                     destination = { lat, lng: lon };
                     map.setView([lat, lon], 14);
 
-                    // Salvează în Firebase pentru toți
                     set(ref(db, 'destination'), { lat, lng: lon });
                     alert(`Găsit: ${results[0].display_name}\nDestinație setată cu succes!`);
                 } else {
-                    alert("Nu s-a găsit nicio locație cu acest nume. Încearcă altă denumire.");
+                    alert("Nu s-a găsit nicio locație cu acest nume.");
                 }
             } catch (error) {
-                alert("Eroare la căutare. Verifică conexiunea la internet.");
+                alert("Eroare la căutare.");
             }
         }
 
@@ -299,13 +315,14 @@
             document.getElementById('benyPasswordModal').classList.remove('flex');
         }
 
-        window.verifyBenyPassword = function() {
+        window.verifyBenyPassword = async function() {
             const pass = document.getElementById('benyPasswordInput').value;
-            if (pass === MY_PIN) {
+            const isValid = await checkPasswordInFirebase(pass);
+            
+            if (isValid) {
                 closeBenyModal();
                 document.getElementById('benyPasswordInput').value = '';
                 isAdmin = true;
-                document.getElementById('searchContainer').classList.remove('hidden'); // Arată bara de căutare
                 startGpsTracking("Beny (Admin)");
             } else {
                 alert("Parolă incorectă!");
@@ -422,15 +439,17 @@
             m.classList.remove('flex'); 
         }
 
-        window.verifyAdmin = function() {
+        window.verifyAdmin = async function() {
             const pin = document.getElementById('adminPinInput').value;
-            if (pin === MY_PIN) {
+            const isValid = await checkPasswordInFirebase(pin);
+
+            if (isValid) {
                 isAdmin = true;
                 document.getElementById('adminLoginForm').classList.add('hidden');
                 document.getElementById('adminControls').classList.remove('hidden');
-                document.getElementById('searchContainer').classList.remove('hidden'); // Activează bara de căutare vizual
+                document.getElementById('searchContainer').classList.remove('hidden');
                 document.getElementById('clearDestBtn').classList.remove('hidden');
-                alert("Acces Admin acordat! Poți folosi căutarea de deasupra hărții sau poți da click direct pe hartă.");
+                alert("Acces Admin acordat! Poți folosi căutarea sau poți da click direct pe hartă.");
             } else {
                 alert("Parolă incorectă!");
             }
@@ -441,7 +460,7 @@
             document.getElementById('adminLoginForm').classList.remove('hidden');
             document.getElementById('adminControls').classList.add('hidden');
             document.getElementById('adminPinInput').value = '';
-            document.getElementById('searchContainer').classList.add('hidden'); // Ascunde bara de căutare
+            document.getElementById('searchContainer').classList.add('hidden');
             document.getElementById('clearDestBtn').classList.add('hidden');
             closeAdminModal();
             alert("Modul Admin a fost închis și blocat.");
