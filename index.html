@@ -46,6 +46,14 @@
             <button id="clearDestBtn" onclick="clearDestination()" class="hidden text-rose-400 hover:underline">Șterge destinația</button>
         </div>
 
+        <!-- Bară de căutare POI (Vizibilă pentru Admin) -->
+        <div id="searchContainer" class="hidden bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-md flex gap-2">
+            <input id="searchQuery" type="text" placeholder="Caută locație sau POI (ex: Cabana Omu, Sinaia...)" class="flex-1 px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <button onclick="searchLocation()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition">
+                🔍 Caută
+            </button>
+        </div>
+
         <!-- Harta -->
         <div id="map" class="shadow-lg border border-slate-700"></div>
 
@@ -69,7 +77,6 @@
                 <p class="text-xs text-slate-300">Introdu numele sau alege o sugestie:</p>
                 <input id="userNameInput" type="text" placeholder="ex: Mihai, Andrei..." class="w-full px-3 py-2 text-sm bg-slate-900 border border-slate-700 rounded-xl text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
                 
-                <!-- Sugestii de nume -->
                 <div class="space-y-1">
                     <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Sugestii rapide:</span>
                     <div class="flex flex-wrap gap-1.5">
@@ -119,7 +126,7 @@
                 </button>
             </div>
             <div id="adminControls" class="hidden space-y-3">
-                <p class="text-xs text-emerald-400 font-semibold">✓ Mod Admin ACTIV! Acum poți da click oriunde pe hartă ca să setezi destinația.</p>
+                <p class="text-xs text-emerald-400 font-semibold">✓ Mod Admin ACTIV! Acum poți căuta o locație sau poți da click oriunde pe hartă.</p>
                 <button onclick="lockAdmin()" class="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-xl transition">
                     🔒 Închide / Părăsește Modul Admin
                 </button>
@@ -173,13 +180,10 @@
                     return;
                 }
                 destination = e.latlng;
-                
-                // Salvăm destinația strict securizat din contul de admin în Firebase
                 set(ref(db, 'destination'), { lat: destination.lat, lng: destination.lng });
                 alert("Destinație setată cu succes pe hartă și sincronizată pentru toți!");
             });
 
-            // Ascultă schimbările de destinație din Firebase în timp real
             onValue(ref(db, 'destination'), (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
@@ -189,7 +193,6 @@
                         .bindPopup("🏁 Destinație Convoi").openPopup();
                     document.getElementById('destinationBanner').classList.remove('hidden');
                     
-                    // Afișează butonul de ștergere doar dacă utilizatorul curent este admin
                     if (isAdmin) {
                         document.getElementById('clearDestBtn').classList.remove('hidden');
                     } else {
@@ -203,11 +206,9 @@
                 updateUI();
             });
 
-            // Ascultă utilizatorii activi din Firebase în timp real
             onValue(ref(db, 'users'), (snapshot) => {
                 const users = snapshot.val() || {};
                 activeUsers = users;
-
                 const currentNames = Object.keys(users);
                 
                 for (let name in userMarkers) {
@@ -228,6 +229,34 @@
                 }
                 updateUI();
             });
+        }
+
+        // Funcție de căutare POI / Adrese gratuită
+        window.searchLocation = async function() {
+            if (!isAdmin) return;
+            const query = document.getElementById('searchQuery').value.trim();
+            if (!query) return;
+
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const results = await response.json();
+
+                if (results && results.length > 0) {
+                    const lat = parseFloat(results[0].lat);
+                    const lon = parseFloat(results[0].lon);
+                    
+                    destination = { lat, lng: lon };
+                    map.setView([lat, lon], 14);
+
+                    // Salvează în Firebase pentru toți
+                    set(ref(db, 'destination'), { lat, lng: lon });
+                    alert(`Găsit: ${results[0].display_name}\nDestinație setată cu succes!`);
+                } else {
+                    alert("Nu s-a găsit nicio locație cu acest nume. Încearcă altă denumire.");
+                }
+            } catch (error) {
+                alert("Eroare la căutare. Verifică conexiunea la internet.");
+            }
         }
 
         window.toggleShare = function() {
@@ -275,7 +304,8 @@
             if (pass === MY_PIN) {
                 closeBenyModal();
                 document.getElementById('benyPasswordInput').value = '';
-                isAdmin = true; // Dacă s-a logat ca Beny, activează automat și drepturile de admin
+                isAdmin = true;
+                document.getElementById('searchContainer').classList.remove('hidden'); // Arată bara de căutare
                 startGpsTracking("Beny (Admin)");
             } else {
                 alert("Parolă incorectă!");
@@ -398,8 +428,9 @@
                 isAdmin = true;
                 document.getElementById('adminLoginForm').classList.add('hidden');
                 document.getElementById('adminControls').classList.remove('hidden');
+                document.getElementById('searchContainer').classList.remove('hidden'); // Activează bara de căutare vizual
                 document.getElementById('clearDestBtn').classList.remove('hidden');
-                alert("Acces Admin acordat! Acum poți închide fereastra și poți da click oriunde pe hartă.");
+                alert("Acces Admin acordat! Poți folosi căutarea de deasupra hărții sau poți da click direct pe hartă.");
             } else {
                 alert("Parolă incorectă!");
             }
@@ -410,6 +441,7 @@
             document.getElementById('adminLoginForm').classList.remove('hidden');
             document.getElementById('adminControls').classList.add('hidden');
             document.getElementById('adminPinInput').value = '';
+            document.getElementById('searchContainer').classList.add('hidden'); // Ascunde bara de căutare
             document.getElementById('clearDestBtn').classList.add('hidden');
             closeAdminModal();
             alert("Modul Admin a fost închis și blocat.");
