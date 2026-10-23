@@ -59,7 +59,8 @@
 
         <!-- Panou Viteze și ETA -->
         <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-md">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Membri Convoi & Viteze Active</h2>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Membri Convoi & Viteze Active</h2>
+            <p class="text-[10px] text-slate-400 mb-3 italic">Apasă pe un membru din listă pentru a-l centra pe hartă.</p>
             <div id="membersList" class="space-y-2">
                 <p class="text-xs text-slate-500 italic">Niciun membru activ momentan pe hartă.</p>
             </div>
@@ -166,14 +167,13 @@
         let destMarker = null;
         let isFirstCenter = true;
 
-        // Funcție helper pentru a verifica parola direct din Firebase
         async function checkPasswordInFirebase(enteredPassword) {
             try {
                 const dbRef = ref(db);
                 const snapshot = await get(child(dbRef, 'settings/adminPin'));
                 if (snapshot.exists()) {
-                    const correctPin = snapshot.val();
-                    return enteredPassword === correctPin;
+                    const correctPin = String(snapshot.val());
+                    return String(enteredPassword).trim() === correctPin;
                 } else {
                     alert("Eroare: Nu s-a găsit setarea de parolă în Firebase!");
                     return false;
@@ -402,11 +402,22 @@
                 }
 
                 const item = document.createElement('div');
-                item.className = "flex justify-between items-center bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/60 text-xs";
+                item.className = "flex justify-between items-center bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/60 text-xs cursor-pointer hover:bg-slate-800 hover:border-indigo-500/50 transition";
+                
+                // Adăugăm acțiunea de centrare pe hartă la click
+                item.onclick = function() {
+                    if (data.lat && data.lng) {
+                        map.setView([data.lat, data.lng], 16);
+                        if (userMarkers[name]) {
+                            userMarkers[name].openPopup();
+                        }
+                    }
+                };
+
                 item.innerHTML = `
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span class="font-semibold text-slate-200">${name}</span>
+                        <span class="font-semibold text-slate-200 underline decoration-dotted">${name}</span>
                     </div>
                     <div class="flex items-center gap-4">
                         <span class="px-2 py-1 bg-slate-800 rounded-lg text-emerald-400 font-mono font-bold">${data.speed} km/h</span>
