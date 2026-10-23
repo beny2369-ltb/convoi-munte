@@ -58,9 +58,11 @@
         <div id="map" class="shadow-lg border border-slate-700"></div>
 
         <!-- Panou Viteze și ETA -->
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-md">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Membri Convoi & Viteze Active</h2>
-            <p class="text-[10px] text-slate-400 mb-3 italic">Apasă pe un membru din listă pentru a-l centra pe hartă.</p>
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-md space-y-3">
+            <div>
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Membri Convoi & Viteze Active</h2>
+                <p class="text-[10px] text-slate-400 italic">Apasă pe un membru din listă pentru a-l centra pe hartă.</p>
+            </div>
             <div id="membersList" class="space-y-2">
                 <p class="text-xs text-slate-500 italic">Niciun membru activ momentan pe hartă.</p>
             </div>
@@ -343,12 +345,14 @@
                     const lng = position.coords.longitude;
                     const speedMs = position.coords.speed || 0;
                     const speedKmh = Math.round(speedMs * 3.6);
+                    const timeString = new Date().toLocaleTimeString('ro-RO'); // Ora exactă a transmisiei
 
                     const cleanName = myName.replace(/[.#$\/\[\]]/g, "_");
                     set(ref(db, 'users/' + cleanName), {
                         lat: lat,
                         lng: lng,
-                        speed: speedKmh
+                        speed: speedKmh,
+                        timestamp: timeString
                     });
 
                     if (isFirstCenter) {
@@ -401,10 +405,11 @@
                     }
                 }
 
+                const lastSeen = data.timestamp ? data.timestamp : "-";
+
                 const item = document.createElement('div');
-                item.className = "flex justify-between items-center bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/60 text-xs cursor-pointer hover:bg-slate-800 hover:border-indigo-500/50 transition";
+                item.className = "flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/60 text-xs cursor-pointer hover:bg-slate-800 hover:border-indigo-500/50 transition gap-2";
                 
-                // Adăugăm acțiunea de centrare pe hartă la click
                 item.onclick = function() {
                     if (data.lat && data.lng) {
                         map.setView([data.lat, data.lng], 16);
@@ -418,8 +423,9 @@
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span class="font-semibold text-slate-200 underline decoration-dotted">${name}</span>
+                        <span class="text-[10px] text-slate-400 font-mono bg-slate-800 px-1.5 py-0.5 rounded">🕒 ${lastSeen}</span>
                     </div>
-                    <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
                         <span class="px-2 py-1 bg-slate-800 rounded-lg text-emerald-400 font-mono font-bold">${data.speed} km/h</span>
                         <span class="text-slate-400">ETA: <strong class="text-indigo-300">${etaText}</strong></span>
                     </div>
